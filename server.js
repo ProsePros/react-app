@@ -25,7 +25,7 @@ app.listen(PORT, function(){
 // Log every request to console
 app.use(logger('dev'));
 // Serve local files
-app.use(express.static('./public'));
+// app.use(express.static('./public'));
 
 //Express middleware for parsing info for http POST requests
 //================================================
@@ -79,59 +79,61 @@ connection.connect(function(err){
 //serve static files
 app.get('/', function(req, res){
 	// res.send('smile! you are alive!');
-	res.sendFile(path.resolve(__dirname, 'public/index.html'));
+	res.sendFile(path.resolve(__dirname, 'public/index2.html'));
 });
 
 
 //send all sentences
+
+
+
 app.get('/sentences', function(req, res){
 	var queryString = `SELECT * FROM sentences`;
 	connection.query(queryString, function(err, data){
+		res.send(data);
+	});
+});
 
-		res.json(data);
-		// res.send(data);
+//retrieve only sentences that contain revision
+//probably will filter at the front end instead of using this.
+app.get('/revisedsentences', function(req, res){
+	var queryString = `SELECT * FROM sentences`;
+	var result = '';
+	connection.query(queryString, function(err, data){
+		var len = data.length;
 
+		for (var i = 0; i < len; i++){
+			// console.log(data[i]);
+			var random = Math.floor(Math.random() * len);
+			//select for sentences with revisions
+			if (data[i].revised === 1){
+				console.log(data[random]);
+			}
+		}
+		// res.json(data);
+		// res.status(201).end();
 	});
 });
 
 
 
-// app.get('/revisedsentences', function(req, res){
-// 	var queryString = `SELECT * FROM sentences`;
-// 	var result = '';
-// 	connection.query(queryString, function(err, data){
-// 		var len = data.length;
-
-// 		for (var i = 0; i < len; i++){
-// 			// console.log(data[i]);
-// 			var random = Math.floor(Math.random() * len);
-// 			//select for sentences with revisions
-// 			if (data[i].revised === 1){
-// 				console.log(data[random]);
-// 			}
-// 		}
-// 		// res.json(data);
-// 		// res.status(201).end();
-// 	});
-// });
-
-
-
 //replace 'get' with 'post' later. 'get' was used to test without using postman
 //route to add a new sentence to the sentences table
-app.get('/addsentence', function(req, res){
-	// var text = req.body;
-	var test = `I enjoy being silent in your company`;
-	var queryString = `INSERT INTO sentences (original) VALUES(?)`;
+app.post('/addsentence', function(req, res){
+	var text = req.body.original;
+	if (!text) res.end();
+	console.log(text);
+	// var test = `When we access our good side we'll remember each other with fondness`;
+	var queryString = "INSERT INTO sentences (original) VALUES(?)";
 
-	connection.query(queryString, [test], function(err, data){
+	connection.query(queryString, [text], function(err, data){
 		if (err) throw err;
 		console.log(data.insertId);
 		var sentenceID = data.insertId;
 	  var tableName = 'sentence'+sentenceID;
 
-		res.send('success');
-
+		res.send();
+		console.log(queryString);
 		var queryString2 = `CREATE TABLE ${tableName} (id int(11) AUTO_INCREMENT, revision varchar (2048) NOT NULL, upvotes int(11) DEFAULT 0, downvotes int(11) DEFAULT 0, PRIMARY KEY (id))`;
 
 	  connection.query(queryString2, function(err, data){
@@ -146,29 +148,31 @@ app.get('/addsentence', function(req, res){
 //replace 'get' with 'post' later
 //route to add a revised version of a sentence to an existing sentence
 
-app.get('/addrevision/:id', function(req, res){
+app.post('/addrevision/:id', function(req, res){
 	var sentenceID = 'sentence' + req.params.id;
 	// var testID = 'sentence1';
-	var text = req.body;
-	var sampleText = `Love, together we ratify the silence`;
+	//text is req.body.revision because it is sent from from end as {revision: text}
+	var text = req.body.revision;
+	// var sampleText = ``;
+	console.log(text);
 	var queryString = `INSERT INTO ${sentenceID} (revision) VALUES (?)`;
-	connection.query(queryString, [sampleText], function(err, data){
+	connection.query(queryString, [text], function(err, data){
 		// res.status(201);
 		if (err) throw err;
-		res.send('success!');
+		res.send();
 		console.log(data);
 	});
 
 	var queryString2 = `UPDATE sentences SET revised = true WHERE id=${req.params.id}`;
 	connection.query(queryString2, function(err, data){
 		if (err) throw err;
-		res.status(201);
+		res.send();
 	});
 });
 
 //upvote a particular revision of a sentence
 app.get('/upvote/:sentenceID/:revisionID', function(req, res){
-	var sentenceID = req.params.sentenceID;
+	var sentenceID = 'sentence' + req.params.sentenceID;
 	var revisionID = req.params.revisionID;
 	var queryString = `UPDATE ${sentenceID} SET upvotes = upvotes + 1 WHERE id = ${revisionID}`;
 	connection.query(queryString, [sentenceID], function(err, data){
@@ -178,7 +182,15 @@ app.get('/upvote/:sentenceID/:revisionID', function(req, res){
 });
 
 
-
+//send revisions of a specific original sentence
+app.get('/revisions/:id', function(req, res){
+	var id = req.params.id;
+	var sentenceID = 'sentence'+id;
+	var queryString = `SELECT * FROM ${sentenceID}`;
+	connection.query(queryString, function(err, data){
+		res.json(data);
+	});
+});
 
 
 //External routing files
@@ -187,37 +199,4 @@ app.get('/upvote/:sentenceID/:revisionID', function(req, res){
 // require('./api/admin-routes.js')(app);
 // require('./api/login-register-routes.js')(app);
 require('./api/static-file-routes.js')(app);
-
-
-
-
-//Sample code from previous apps
-// function updateUserTable(userID, photoID, url){
-// 		var queryString = `INSERT INTO ` + userID + ` (id, url) VALUES (?, ?)`;
-// 		connection.query(queryString, [photoID, url], function(err, data){
-// 			if (err) throw err;
-// 			console.log(data);
-// 		});
-// 	}
-
-// connection.query("INSERT INTO products SET ?", {
-//     flavor: "Rocky Road",
-//     price: 3.00,
-//     quantity: 50
-// }, function(err, res) {});
-
-// connection.query("UPDATE products SET ? WHERE ?", [{
-//     quantity: 100
-// }, {
-//     flavor: "Rocky Road"
-// }], function(err, res) {});
-
-// connection.query("DELETE FROM products WHERE ?", {
-//     flavor: "strawberry"
-// }, function(err, res) {});
-
-// connection.query('SELECT * FROM products', function(err, res) {
-//     if (err) throw err;
-//     console.log(res);
-// })
 
